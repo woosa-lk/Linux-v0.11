@@ -30,27 +30,37 @@ begdata:
 .bss
 begbss:
 .text
+! ======================================================================
+!  1、bootsect对内存的规划
+SETUPLEN = 4				! nr of setup-sectors 要加载的setup程序的扇区数
+SETUPSEG = 0x9020			! setup starts here 被加载到的位置
 
-SETUPLEN = 4				! nr of setup-sectors
-BOOTSEG  = 0x07c0			! original address of boot-sector
-INITSEG  = 0x9000			! we move boot here - out of the way
-SETUPSEG = 0x9020			! setup starts here
-SYSSEG   = 0x1000			! system loaded at 0x10000 (65536).
-ENDSEG   = SYSSEG + SYSSIZE		! where to stop loading
+BOOTSEG  = 0x07c0			! original address of boot-sector 启动扇区被BIOS加载的位置
+INITSEG  = 0x9000			! we move boot here - out of the way 将要移动到的新位置
+
+SYSSEG   = 0x1000			! system loaded at 0x10000 (65536).内核（kernel）被加载的位置
+ENDSEG   = SYSSEG + SYSSIZE		! where to stop loading 内核的末尾位置
 
 ! ROOT_DEV:	0x000 - same type of floppy as boot.
 !		0x301 - first partition on first drive etc
-ROOT_DEV = 0x306
+ROOT_DEV = 0x306 ! 根文件系统设备号
+! ======================================================================
 
 entry start
 start:
+! ======================================================================
+!  2、复制bootsect,bootsect启动程序将它自身(全部的512B内容)从内存0x07c0(BOOTSEG)处
+!     复制至内存0x9000(INITSEG)处.
+!     [由于“两头约定”和“定位识别”的作用，所以bootsect在开始时“被迫”加载到0x07c0
+!     位置。现在将其自身移至0x9000处，说明操作系统开始根据自己的需要安排内存了.]
 	mov	ax,#BOOTSEG
 	mov	ds,ax
 	mov	ax,#INITSEG
 	mov	es,ax
-	mov	cx,#256
-	sub	si,si
-	sub	di,di
+	mov	cx,#256       	!256字=512byte,1字=2byte,提供了需要复制的字数
+	sub	si,si			!ds(0x07c0)和si(0x0000)联合使用，构成了源地址0x0700
+	sub	di,di			!es(0x9000)和di(0x0000)联合使用，构成了目的地址0x9000
+! ======================================================================
 	rep
 	movw
 	jmpi	go,INITSEG
