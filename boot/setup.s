@@ -105,11 +105,11 @@ no_disk1:
 is_disk1:
 
 ! now we want to move to protected mode ...
-
+!关中断
 	cli			! no interrupts allowed !
 
 ! first we move the system to it's rightful place
-
+!将位于0x1000的内核程序拷贝至内存地址起始位置0x0000处
 	mov	ax,#0x0000
 	cld			! 'direction'=0, movs moves forward
 do_move:
@@ -134,6 +134,7 @@ end_move:
 	lgdt	gdt_48		! load gdt with whatever appropriate
 
 ! that was painless, now we enable A20
+!打开A20，实现32位寻址
 
 	call	empty_8042
 	mov	al,#0xD1		! command write
@@ -151,6 +152,8 @@ end_move:
 ! which is used for the internal hardware interrupts as well. We just
 ! have to reprogram the 8259's, and it isn't fun.
 
+
+!建立保护模式下的中断机制
 	mov	al,#0x11		! initialization sequence
 	out	#0x20,al		! send it to 8259A-1
 	.word	0x00eb,0x00eb		! jmp $+2, jmp $+2
@@ -188,6 +191,7 @@ end_move:
 ! we let the gnu-compiled 32-bit programs do that. We just jump to
 ! absolute address 0x00000, in 32-bit protected mode.
 
+!将CPU的工作方式设为保护模式
 	mov	ax,#0x0001	! protected mode (PE) bit
 	lmsw	ax		! This is it!
 	jmpi	0,8		! jmp offset 0 of segment 8 (cs)

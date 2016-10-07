@@ -22,6 +22,8 @@ SYSSIZE = 0x3000
 ! read errors will result in a unbreakable loop. Reboot by hand. It
 ! loads pretty fast by getting whole sectors at a time whenever possible.
 
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+!  1、bootsect对内存的规划
 .globl begtext, begdata, begbss, endtext, enddata, endbss
 .text
 begtext:
@@ -30,8 +32,6 @@ begdata:
 .bss
 begbss:
 .text
-! ======================================================================
-!  1、bootsect对内存的规划
 SETUPLEN = 4				! nr of setup-sectors 要加载的setup程序的扇区数
 SETUPSEG = 0x9020			! setup starts here 被加载到的位置
 
@@ -48,7 +48,7 @@ ROOT_DEV = 0x306 ! 根文件系统设备号
 
 entry start
 start:
-! ======================================================================
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 !  2、复制bootsect,bootsect启动程序将它自身(全部的512B内容)从内存0x07c0(BOOTSEG)处
 !     复制至内存0x9000(INITSEG)处.
 !     [由于“两头约定”和“定位识别”的作用，所以bootsect在开始时“被迫”加载到0x07c0
@@ -60,26 +60,39 @@ start:
 	mov	cx,#256       	!256字=512byte,1字=2byte,提供了需要复制的字数
 	sub	si,si			!ds(0x07c0)和si(0x0000)联合使用，构成了源地址0x0700
 	sub	di,di			!es(0x9000)和di(0x0000)联合使用，构成了目的地址0x9000
-! ======================================================================
 	rep
 	movw
+! ======================================================================
+
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+!  3、程序跳转到0x9000这边的代码；这样设计的意图是跳转完后在新的位置接着执行后面的 mov ax,cs
+!     而不是死循环
 	jmpi	go,INITSEG
 go:	mov	ax,cs
+! ======================================================================
+
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+!  4、由于boosect复制到了新地址，并且要在新地址继续执行。因为代码的整体位置
+!  	  发生了改变，所以代码中的各个段也会发生改变，前面已经改变了cs段，现在
+!	  对ds、es、ss和sp进行调整
 	mov	ds,ax
 	mov	es,ax
 ! put stack at 0x9ff00.
 	mov	ss,ax
 	mov	sp,#0xFF00		! arbitrary value >>512
+! ======================================================================
 
+! @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+!  5、通过int 0x13中断向量所指向的中断服务程序（也就是磁盘服务程序）将Setup程序加载到内存中
 ! load the setup-sectors directly after the bootblock.
 ! Note that 'es' is already set up.
-
 load_setup:
 	mov	dx,#0x0000		! drive 0, head 0
 	mov	cx,#0x0002		! sector 2, track 0
 	mov	bx,#0x0200		! address = 512, in INITSEG
 	mov	ax,#0x0200+SETUPLEN	! service 2, nr of sectors
 	int	0x13			! read it
+! ======================================================================
 	jnc	ok_load_setup		! ok - continue
 	mov	dx,#0x0000
 	mov	ax,#0x0000		! reset the diskette
